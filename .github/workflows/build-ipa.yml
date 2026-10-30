@@ -16,7 +16,10 @@ jobs:
           echo "DEVELOPER_DIR=$X/Contents/Developer" >> $GITHUB_ENV
           DEVELOPER_DIR=$X/Contents/Developer xcodebuild -version
       - name: Tools
-        run: brew install ninja libarchive meson || true
+        run: |
+          brew install ninja libarchive meson llvm lld || true
+          echo "$(brew --prefix lld)/bin" >> $GITHUB_PATH
+          echo "$(brew --prefix llvm)/bin" >> $GITHUB_PATH
       - name: Fetch upstreams
         run: Scripts/fetch-upstreams.sh
       - name: Build iSH sandbox artifacts
