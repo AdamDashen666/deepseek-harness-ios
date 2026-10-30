@@ -26,8 +26,8 @@ jobs:
           xcodebuild -project HarnessMobile.xcodeproj -scheme HarnessMobile -configuration Release \
             -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath /tmp/dd \
             ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" \
-            build | tee /tmp/build.log | grep -E "error:|warning: .*fatal|BUILD" || true
-          test ${PIPESTATUS[0]} -eq 0 || { tail -200 /tmp/build.log; exit 1; }
+            build > /tmp/build.log 2>&1 || { grep -E "error:" /tmp/build.log | head -50; tail -200 /tmp/build.log; exit 1; }
+          grep -E "BUILD" /tmp/build.log
       - name: Package IPA
         run: |
           APP=$(ls -d /tmp/dd/Build/Products/Release-iphoneos/*.app | head -1)
