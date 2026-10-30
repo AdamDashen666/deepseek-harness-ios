@@ -1,0 +1,40 @@
+name: Build unsigned IPA
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/deepseek-parity]
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select newest Xcode
+        run: |
+          ls -d /Applications/Xcode*.app
+          X=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          echo "DEVELOPER_DIR=$X/Contents/Developer" >> $GITHUB_ENV
+          DEVELOPER_DIR=$X/Contents/Developer xcodebuild -version
+      - name: Tools
+        run: brew install ninja libarchive meson || true
+      - name: Fetch upstreams
+        run: Scripts/fetch-upstreams.sh
+      - name: Build iSH sandbox artifacts
+        run: ISH_MESON=$(command -v meson) ISH_NINJA=$(command -v ninja) ISH_LIBARCHIVE_PREFIX=$(brew --prefix libarchive) Scripts/build-ish-sandbox.sh all
+      - name: Build device app
+        run: |
+          xcodebuild -project HarnessMobile.xcodeproj -scheme HarnessMobile -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath /tmp/dd \
+            ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" \
+            build | tee /tmp/build.log | grep -E "error:|warning: .*fatal|BUILD" || true
+          test ${PIPESTATUS[0]} -eq 0 || { tail -200 /tmp/build.log; exit 1; }
+      - name: Package IPA
+        run: |
+          APP=$(ls -d /tmp/dd/Build/Products/Release-iphoneos/*.app | head -1)
+          lipo -info "$APP/$(basename "$APP" .app)"
+          mkdir -p out/Payload && cp -R "$APP" out/Payload/
+          cd out && zip -qry HarnessMobile-unsigned.ipa Payload && ls -l *.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HarnessMobile-unsigned-ipa
+          path: out/HarnessMobile-unsigned.ipa
