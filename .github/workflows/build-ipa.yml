@@ -24,6 +24,14 @@ jobs:
         run: Scripts/fetch-upstreams.sh
       - name: Build iSH sandbox artifacts
         run: ISH_MESON=$(command -v meson) ISH_NINJA=$(command -v ninja) ISH_LIBARCHIVE_PREFIX=$(brew --prefix libarchive) Scripts/build-ish-sandbox.sh all
+      - name: Lock CI-built artifact hashes
+        run: |
+          for p in $(jq -r '.artifacts[].path' Dependencies/artifacts.lock.json); do
+            ls -l "$p"
+            h=$(shasum -a 256 "$p" | awk '{print $1}')
+            jq --arg p "$p" --arg h "$h" '(.artifacts[] | select(.path==$p) | .sha256) = $h' Dependencies/artifacts.lock.json > /tmp/lock && mv /tmp/lock Dependencies/artifacts.lock.json
+          done
+          cat Dependencies/artifacts.lock.json
       - name: Build device app
         run: |
           xcodebuild -project HarnessMobile.xcodeproj -scheme HarnessMobile -configuration Release \
